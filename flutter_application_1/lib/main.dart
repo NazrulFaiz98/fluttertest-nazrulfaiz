@@ -28,31 +28,56 @@ class _MainScreenState extends State<MainScreen> {
   String _activityName = "Press 'Next' to get a random activity";
   String _price = "";
   final List<Map<String,String>> _activityHistory=[];
+  String? _selectedType;
+  final List<String> _activityTypes=[
+    'education',
+    'recreational',
+    'social',
+    'diy',
+    'charity',
+    'relaxation',
+    'music',
+    'busywork',
+  ];
 
   Future<void> _fetchActivity()async {
-    final url = Uri.parse('https://bored.api.lewagon.com/api/activity');
+    final baseUrl = 'https://bored.api.lewagon.com/api/activity';
+    final url = _selectedType !=null
+      ? Uri.parse('$baseUrl?types=$_selectedType')
+      : Uri.parse(baseUrl);
     try {
       final response =await http.get(url);
       if(response.statusCode==200){
         final data = json.decode(response.body);
-        final activity = data['activity'] ?? "No activity found.";
-        final price = data['price'] != null ? "Price \$${data['price']}" : "Price :Free";
- 
-        setState(() {
-          _activityName = activity;
-          _price = "Price:$price";
-          _activityHistory.add({"activity":activity});
+        if (data.isNotEmpty){
+          final activity = data['activity'] ?? "No activity found.";
+          final price = data['price'] != null ? "Price \$${data['price']}" : "Price :Free";
+  
+          setState(() {
+            _activityName = activity;
+            _price = "Price:$price";
+            _activityHistory.add({
+              "activity":activity,
+              "price":price,
+              "type": _selectedType ?? "random",
+            });
 
-          if (_activityHistory.length > 50){
-            _activityHistory.removeAt(0);
-          }
-        });
-      }else{
-        setState(() {
-          _activityName="Failed to load activity";
-          _price="";
-        });
-      }
+            if (_activityHistory.length > 50){//keep only 50
+              _activityHistory.removeAt(0);
+            }
+          });
+        }else{
+          setState(() {
+            _activityName="No activity found for the selected type";
+            _price="";
+          });
+        }
+        }else{
+          setState(() {
+            _activityName="Failed to load activity";
+            _price="";
+          });
+        }
     }catch (e){
         setState(() {
           _activityName="An error occured";
@@ -64,7 +89,10 @@ class _MainScreenState extends State<MainScreen> {
   void _navigateToHistory(){
     Navigator.push(
       context, 
-      MaterialPageRoute(builder:(context)=>HistoryScreen(activityHistory: _activityHistory),
+      MaterialPageRoute(builder:(context)=>HistoryScreen(
+        activityHistory: _activityHistory,
+        highlightedType: _selectedType
+        ),
       ),
     );
   }
@@ -83,6 +111,23 @@ class _MainScreenState extends State<MainScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            DropdownButton<String>(
+              value: _selectedType,
+              hint: Text('Select a type (optional)'),
+              isExpanded: true,
+              items: _activityTypes.map((type){
+                return DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(type),
+                  );
+              }).toList(),
+              onChanged: (value){
+                setState(() {
+                  _selectedType = value;
+                });
+              },
+            ),
+            SizedBox(height: 20),
             Text(
               _activityName,
               textAlign: TextAlign.center,
@@ -105,7 +150,8 @@ class _MainScreenState extends State<MainScreen> {
 }
 class HistoryScreen extends StatelessWidget {
   final List<Map<String,String>> activityHistory;
-  HistoryScreen({required this.activityHistory});
+  final String? highlightedType;
+  HistoryScreen({required this.activityHistory, this.highlightedType});
 
   @override
   Widget build(BuildContext context) {
@@ -117,8 +163,16 @@ class HistoryScreen extends StatelessWidget {
         itemCount: activityHistory.length,
         itemBuilder: (context, index){
           final activity = activityHistory[index];
+          final isHighlighted = 
+                highlightedType != null && activity['type'] == highlightedType;
           return ListTile(
-            title: Text(activity['activity']??''),
+            title: Text(
+              activity['activity']??'',
+              style: TextStyle(
+                color: isHighlighted?Colors.blue : Colors.black,
+                fontWeight: isHighlighted ? FontWeight.bold :FontWeight.normal,
+              ),
+            ),
             subtitle: Text('Price: ${activity['price']}'),
           );
         },
