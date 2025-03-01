@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(FlutterTest());
@@ -40,6 +41,44 @@ class _MainScreenState extends State<MainScreen> {
     'busywork',
   ];
 
+  @override
+  void initState(){
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async{
+    final prefs = await SharedPreferences.getInstance();
+
+    //load history
+    final historyString = prefs.getString('activityHistory');
+    if(historyString != null){
+      final historyList = json.decode(historyString) as List;
+      _activityHistory.addAll(historyList.map((e) => Map<String, String>.from(e)));
+    }
+  
+   // Load selected type
+    final savedType = prefs.getString('selectedType');
+    setState(() {
+      _selectedType = savedType;
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Save history
+    final historyString = json.encode(_activityHistory);
+    await prefs.setString('activityHistory', historyString);
+
+    // Save selected type
+    if (_selectedType != null) {
+      await prefs.setString('selectedType', _selectedType!);
+    } else {
+      await prefs.remove('selectedType');
+    }
+  }
+
   Future<void> _fetchActivity()async {
     final baseUrl = 'https://bored.api.lewagon.com/api/activity';
     final url = _selectedType !=null
@@ -56,6 +95,7 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             _activityName = activity;
             _price = "Price:$price";
+
             _activityHistory.add({
               "activity":activity,
               "price":price,
@@ -66,6 +106,8 @@ class _MainScreenState extends State<MainScreen> {
               _activityHistory.removeAt(0);
             }
           });
+
+          await _savePreferences();
         }else{
           setState(() {
             _activityName="No activity found for the selected type";
